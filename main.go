@@ -44,21 +44,28 @@ func main() {
 	from := now.Add(-(time.Duration(*minutes) * time.Minute))
 
 	client, err := elastic.NewClient(elastic.SetURL(*elasticsearchURL))
+	if err != nil {
+		panic(err)
+	}
 
 	timeRangeAgg := elastic.NewDateRangeAggregation().Field("@timestamp").Between(from, now)
-	avgDurationAgg := elastic.NewAvgAggregation().Field(*key)
-	timeRangeAgg = timeRangeAgg.SubAggregation("avgDuration", avgDurationAgg)
+	maxDurationAgg := elastic.NewMaxAggregation().Field(*key)
+	timeRangeAgg = timeRangeAgg.SubAggregation("avgDuration", maxDurationAgg)
 
 	index := fmt.Sprintf("logstash-%d.%02d.%02d", now.Year(), now.Month(), now.Day())
-	searchResult, _ := client.Search().
+	searchResult, err := client.Search().
 		Index(index).
 		Aggregation("timeRange", timeRangeAgg).
 		Query(elastic.NewQueryStringQuery(*query)).
 		Do()
 
+	if err != nil {
+		panic(err)
+	}
+
 	durationOverTime, _ := searchResult.Aggregations.DateRange("timeRange")
-	avg, _ := durationOverTime.Buckets[0].Avg("avgDuration")
-	avgDurationMs := *avg.Value
+	max, _ := durationOverTime.Buckets[0].Max("avgDuration")
+	avgDurationMs := *max.Value
 
 	// Add an 'OK' result - if no 'worse' check results have been
 	// added, this is the one that will be output.
