@@ -85,7 +85,7 @@ func main() {
 	}
 
 	if warnRange.Check(avgDurationMs) {
-		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold", *desc))
+		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold: <a href=\"%s\">link</a>", *desc, "https://redacted/app/kibana#/visualize/edit/VarnishLog-slash-ban-duration?_g=(refreshInterval:(display:Off,pause:!f,value:0),time:(from:now-15m,mode:quick,to:now))&_a=(filters:!(),linked:!f,query:(query_string:(analyze_wildcard:!t,query:'service:varnishlog%20AND%20url:%22%2Fban%22')),uiState:(),vis:(aggs:!((id:'2',params:(customInterval:'2h',extended_bounds:(),field:'@timestamp',interval:auto,min_doc_count:1),schema:segment,type:date_histogram),(id:'4',params:(field:hostname_raw,order:desc,orderBy:'5',row:!t,size:8),schema:split,type:terms),(id:'5',params:(field:stopwatch.resp.duration_ms),schema:metric,type:max)),listeners:(),params:(addLegend:!t,addTimeMarker:!f,addTooltip:!t,defaultYExtents:!f,mode:stacked,scale:linear,setYExtents:!f,shareYAxis:!t,times:!(),yAxis:()),title:'VarnishLog%20%2Fban%20duration',type:histogram))"))
 	}
 	if critRange.Check(avgDurationMs) {
 		check.AddResult(nagiosplugin.CRITICAL, fmt.Sprintf("%s above critical threshold", *desc))
