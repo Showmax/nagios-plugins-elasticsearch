@@ -85,7 +85,7 @@ func main() {
 	}
 
 	if warnRange.Check(avgDurationMs) {
-		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold - <b><a href=\"https://redacted/app/kibana#/visualize/edit/VarnishLog-slash-ban-duration\">Link to dashboard</a></b>", *desc))
+		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold", *desc))
 	}
 	if critRange.Check(avgDurationMs) {
 		check.AddResult(nagiosplugin.CRITICAL, fmt.Sprintf("%s above critical threshold", *desc))
