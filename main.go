@@ -45,7 +45,9 @@ func main() {
 
 	client, err := elastic.NewClient(elastic.SetURL(*elasticsearchURL))
 	if err != nil {
-		panic(err)
+		check.AddResult(nagiosplugin.CRITICAL,
+			fmt.Sprintf("Failed to connect to %v: %v", *elasticsearchURL, err))
+		return
 	}
 
 	timeRangeAgg := elastic.NewDateRangeAggregation().Field("@timestamp").Between(from, now)
@@ -58,13 +60,32 @@ func main() {
 		Aggregation("timeRange", timeRangeAgg).
 		Query(elastic.NewQueryStringQuery(*query)).
 		Do()
-
 	if err != nil {
-		panic(err)
+		check.AddResult(nagiosplugin.CRITICAL,
+			fmt.Sprintf("Failed to execute search at %v, index %v: %v",
+				*elasticsearchURL, index, err))
+		return
 	}
 
-	durationOverTime, _ := searchResult.Aggregations.DateRange("timeRange")
-	max, _ := durationOverTime.Buckets[0].Max("avgDuration")
+	durationOverTime, found := searchResult.Aggregations.DateRange("timeRange")
+	if !found {
+		check.AddResult(nagiosplugin.CRITICAL, "Query has returned no results.")
+		return
+	}
+
+	bucketCount := len(durationOverTime.Buckets)
+	if bucketCount < 1 {
+		check.AddResult(nagiosplugin.CRITICAL, "Result has no buckets.")
+		return
+	}
+
+	var max *elastic.AggregationValueMetric
+	max, found = durationOverTime.Buckets[0].Max("avgDuration")
+	if !found || max == nil || max.Value == nil {
+		check.AddResult(nagiosplugin.CRITICAL,
+			"There is no value for max(avgDuration). Perhaps the Query didn't match anything!")
+		return
+	}
 	avgDurationMs := *max.Value
 
 	// Add an 'OK' result - if no 'worse' check results have been
@@ -77,17 +98,21 @@ func main() {
 	warnRange, err := nagiosplugin.ParseRange(*warningThreshold)
 	if err != nil {
 		check.AddResult(nagiosplugin.UNKNOWN, "error parsing warning range")
+		return
 	}
 
 	critRange, err := nagiosplugin.ParseRange(*criticalThreshold)
 	if err != nil {
 		check.AddResult(nagiosplugin.UNKNOWN, "error parsing critical range")
+		return
 	}
 
 	if warnRange.Check(avgDurationMs) {
 		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold", *desc))
+		return
 	}
 	if critRange.Check(avgDurationMs) {
 		check.AddResult(nagiosplugin.CRITICAL, fmt.Sprintf("%s above critical threshold", *desc))
+		return
 	}
 }
