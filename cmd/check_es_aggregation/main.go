@@ -108,7 +108,7 @@ func main() {
 
 	// Add an 'OK' result - if no 'worse' check results have been
 	// added, this is the one that will be output.
-	check.AddResult(nagiosplugin.OK, fmt.Sprintf("%s OK", *desc))
+	check.AddResult(nagiosplugin.OK, fmt.Sprintf("%s %f OK", *desc, avgDurationMs))
 
 	check.AddPerfDatum(*key, *unit, avgDurationMs, 0.0, math.Inf(1), warning, critical)
 
