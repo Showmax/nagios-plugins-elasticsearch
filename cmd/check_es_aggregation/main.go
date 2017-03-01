@@ -15,6 +15,7 @@ import (
 var (
 	elasticsearchURL  = kingpin.Flag("elasticsearch.url", "Elasticsearch URL.").Short('e').Default("http://localhost:9200").String()
 	query             = kingpin.Flag("query", "Elasticsearch query string").Short('q').Required().String()
+	index             = kingpin.Flag("index-pattern", "Elasticsearch index pattern, eg. logstash-*").Required().String()
 	key               = kingpin.Flag("key", "Elasticsearch document key to aggregate (check will be based on the value of this field).").Short('k').Required().String()
 	desc              = kingpin.Flag("desc", "Check description").Short('d').Required().String()
 	unit              = kingpin.Flag("unit", "Unit displayed in the check description").Short('u').String()
@@ -40,6 +41,10 @@ func main() {
 		panic(err)
 	}
 
+	if *index == "" || *index == "*" {
+		panic(fmt.Errorf("Invalid ES index '%s' given", *index))
+	}
+
 	now := time.Now()
 	from := now.Add(-(time.Duration(*minutes) * time.Minute))
 
@@ -54,9 +59,9 @@ func main() {
 	maxDurationAgg := elastic.NewMaxAggregation().Field(*key)
 	timeRangeAgg = timeRangeAgg.SubAggregation("avgDuration", maxDurationAgg)
 
-	index := fmt.Sprintf("logstash-%d.%02d.%02d", now.Year(), now.Month(), now.Day())
+	//index := fmt.Sprintf("logs-app-varnishlog-%d.%02d.%02d", now.Year(), now.Month(), now.Day())
 	searchResult, err := client.Search().
-		Index(index).
+		Index(*index).
 		Aggregation("timeRange", timeRangeAgg).
 		Query(elastic.NewQueryStringQuery(*query)).
 		Do()
