@@ -113,11 +113,11 @@ func main() {
 	}
 
 	if warnRange.Check(avgDurationMs) {
-		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s above warning threshold", *desc))
+		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s %f above warning threshold", *desc, avgDurationMs))
 		return
 	}
 	if critRange.Check(avgDurationMs) {
-		check.AddResult(nagiosplugin.CRITICAL, fmt.Sprintf("%s above critical threshold", *desc))
+		check.AddResult(nagiosplugin.CRITICAL, fmt.Sprintf("%s %f above critical threshold", *desc, avgDurationMs))
 		return
 	}
 }
