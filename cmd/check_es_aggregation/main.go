@@ -45,6 +45,19 @@ func main() {
 		panic(fmt.Errorf("Invalid ES index '%s' given", *index))
 	}
 
+	// Parse a range from the command line and warn on a match.
+	warnRange, err := nagiosplugin.ParseRange(*warningThreshold)
+	if err != nil {
+		check.AddResult(nagiosplugin.UNKNOWN, "error parsing warning range")
+		return
+	}
+
+	critRange, err := nagiosplugin.ParseRange(*criticalThreshold)
+	if err != nil {
+		check.AddResult(nagiosplugin.UNKNOWN, "error parsing critical range")
+		return
+	}
+
 	now := time.Now()
 	from := now.Add(-(time.Duration(*minutes) * time.Minute))
 
@@ -98,19 +111,6 @@ func main() {
 	check.AddResult(nagiosplugin.OK, fmt.Sprintf("%s OK", *desc))
 
 	check.AddPerfDatum(*key, *unit, avgDurationMs, 0.0, math.Inf(1), warning, critical)
-
-	// Parse a range from the command line and warn on a match.
-	warnRange, err := nagiosplugin.ParseRange(*warningThreshold)
-	if err != nil {
-		check.AddResult(nagiosplugin.UNKNOWN, "error parsing warning range")
-		return
-	}
-
-	critRange, err := nagiosplugin.ParseRange(*criticalThreshold)
-	if err != nil {
-		check.AddResult(nagiosplugin.UNKNOWN, "error parsing critical range")
-		return
-	}
 
 	if warnRange.Check(avgDurationMs) {
 		check.AddResult(nagiosplugin.WARNING, fmt.Sprintf("%s %f above warning threshold", *desc, avgDurationMs))
