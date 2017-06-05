@@ -27,8 +27,15 @@ type args struct {
 	elasticsearchURL  *string
 	debug             *bool
 	query             *string
+	pExists           *[]string
+	nExists           *[]string
 	pTerm             *[]string
 	nTerm             *[]string
+	nMatch            *[]string
+	pMatch            *[]string
+	nPrefix           *[]string
+	pPrefix           *[]string
+	regexp            *[]string
 	pRange            *string
 	nRange            *string
 	index             *string
@@ -74,6 +81,7 @@ type searcher struct {
 	aggName string
 	pctVal  string
 	qry     *elastic.BoolQuery
+	flt     *elastic.BoolQuery
 	res     *elastic.SearchResult
 }
 
@@ -95,16 +103,57 @@ func newSearcher(url string, idx string, timeAgo time.Duration, logger *log.Logg
 	from := now.Add(-timeAgo)
 
 	s.agg = elastic.NewDateRangeAggregation().Field("@timestamp").Between(from, now)
+	s.flt = elastic.NewBoolQuery()
 	s.qry = elastic.NewBoolQuery()
 
 	return s, nil
 }
 
+func (s *searcher) AddQueryString(str string) *searcher {
+	s.qry = s.qry.Must(elastic.NewQueryStringQuery(str))
+	return s
+}
+
+func (s *searcher) AddExistsFilter(field string, negative bool) *searcher {
+	qry := elastic.NewExistsQuery(field)
+	if negative {
+		s.flt = s.flt.MustNot(qry)
+	} else {
+		s.flt = s.flt.Must(qry)
+	}
+	return s
+}
+
+func (s *searcher) AddRegexFilter(field string, regexp string) *searcher {
+	s.flt = s.flt.Must(elastic.NewRegexpQuery(field, regexp))
+	return s
+}
+
+func (s *searcher) AddMatchFilter(field string, value string, negative bool) *searcher {
+	qry := elastic.NewMatchQuery(field, value)
+	if negative {
+		s.flt = s.flt.MustNot(qry)
+	} else {
+		s.flt = s.flt.Must(qry)
+	}
+	return s
+}
+
+func (s *searcher) AddPrefixFilter(field string, prefix string, negative bool) *searcher {
+	qry := elastic.NewPrefixQuery(field, prefix)
+	if negative {
+		s.flt = s.flt.MustNot(qry)
+	} else {
+		s.flt = s.flt.Must(qry)
+	}
+	return s
+}
+
 func (s *searcher) AddTermFilter(field string, value string, negative bool) *searcher {
 	if negative {
-		s.qry = s.qry.MustNot(elastic.NewTermQuery(field, value))
+		s.flt = s.flt.MustNot(elastic.NewTermQuery(field, value))
 	} else {
-		s.qry = s.qry.Must(elastic.NewTermQuery(field, value))
+		s.flt = s.flt.Must(elastic.NewTermQuery(field, value))
 	}
 	return s
 }
@@ -125,9 +174,9 @@ func (s *searcher) AddRangeFilter(field string, rng string, negative bool) *sear
 		q = q.From(r[0]).To(r[1])
 	}
 	if negative {
-		s.qry = s.qry.MustNot(q)
+		s.flt = s.flt.MustNot(q)
 	} else {
-		s.qry = s.qry.Must(q)
+		s.flt = s.flt.Must(q)
 	}
 	return s
 }
@@ -245,38 +294,52 @@ func (s *searcher) Result() (float64, error) {
 
 func (s *searcher) Search() error {
 	var err error
-	s.res, err = s.es.Search(s.idx).Query(s.qry).Aggregation("aggr", s.agg).Do(context.Background())
+	s.res, err = s.es.Search(s.idx).Query(s.qry.Filter(s.flt)).Aggregation("aggr", s.agg).Do(context.Background())
 	return err
 }
 
 // ----------------------------------------------------------------------------------
 
+// Error - generic error type
 type Error struct {
 	msg string
 }
 
+// NoSearchResultError - empty search result
 type NoSearchResultError Error
-type NoAggrValuesError Error
 
 func (e *NoSearchResultError) Error() string {
 	return fmt.Sprintf("No data in search result - %s", e.msg)
 }
 
+// NoAggrValuesError - no aggregation values in response
+type NoAggrValuesError Error
+
 func (e *NoAggrValuesError) Error() string {
 	return fmt.Sprintf("Aggregation result value missing in response - %s (see --debug)", e.msg)
 }
 
+// ArgumentMissingError - required argument missing
+type ArgumentMissingError Error
+
+func (e *ArgumentMissingError) Error() string {
+	return fmt.Sprintf("Missing mandatory argument (%s)", e.msg)
+}
+
 // ----------------------------------------------------------------------------------
 
-func validateTreshold(in string) (*nagiosplugin.Range, error) {
-	rng, err := nagiosplugin.ParseRange(in)
+func validateTreshold(in *string, arg string) (*nagiosplugin.Range, error) {
+	if *in == "" {
+		return nil, &ArgumentMissingError{arg}
+	}
+	rng, err := nagiosplugin.ParseRange(*in)
 	if err != nil {
 		return nil, err
 	}
 	return rng, nil
 }
 
-func fields(in string) []string {
+func Fields(in string) []string {
 	f := strings.FieldsFunc(in,
 		func(r rune) bool {
 			return strings.ContainsRune(":=", r)
@@ -285,26 +348,56 @@ func fields(in string) []string {
 	return f
 }
 
-func filter(s *searcher) {
+func Filter(s *searcher) {
+	for _, exists := range *config.pExists {
+		s.AddExistsFilter(exists, false)
+	}
+	for _, exists := range *config.nExists {
+		s.AddExistsFilter(exists, true)
+	}
 	for _, term := range *config.pTerm {
-		f := fields(term)
+		f := Fields(term)
 		s.AddTermFilter(f[0], f[1], false)
 	}
 	for _, term := range *config.nTerm {
-		f := fields(term)
+		f := Fields(term)
 		s.AddTermFilter(f[0], f[1], true)
 	}
+	for _, match := range *config.pMatch {
+		f := Fields(match)
+		s.AddMatchFilter(f[0], f[1], false)
+	}
+	for _, match := range *config.nMatch {
+		f := Fields(match)
+		s.AddMatchFilter(f[0], f[1], true)
+	}
+	for _, prefix := range *config.pPrefix {
+		f := Fields(prefix)
+		s.AddPrefixFilter(f[0], f[1], false)
+	}
+	for _, prefix := range *config.nPrefix {
+		f := Fields(prefix)
+		s.AddPrefixFilter(f[0], f[1], true)
+	}
+	for _, regexp := range *config.regexp {
+		f := Fields(regexp)
+		s.AddRegexFilter(f[0], f[1])
+	}
 	if *config.pRange != "" {
-		f := fields(*config.pRange)
+		f := Fields(*config.pRange)
 		s.AddRangeFilter(f[0], f[1], false)
 	}
 	if *config.nRange != "" {
-		f := fields(*config.pRange)
+		f := Fields(*config.pRange)
 		s.AddRangeFilter(f[0], f[1], true)
 	}
 }
 
-func aggregate(s *searcher) {
+func Query(s *searcher) {
+	s.AddQueryString(*config.query)
+}
+
+func Aggregate(s *searcher) {
 	var params interface{}
 	if *config.agg == "pct" {
 		params = *config.pct
@@ -333,25 +426,60 @@ Supported aggregations:
   stdevmax     Standard deviation upper boundary
   var          Variance
 
+Supported filters:
+  (not-)exits     Matches against field presence
+  (not-)term      Matches string against analyzed terms
+  (not-)match     Matches string against analyzed field data
+  (not-)prefix    Matches prefix string against field data
+  regex           Matches regex against field data
+
+  Syntax:
+    <field>:<value>
+    <field>=<value>
+
+  Examples:
+    --not-exits message
+    -t hostname:localhost
+    -m domain:*example.net
+    -r 'message:/^some_nice_long_(test|debug)_value/'
+    --range code:"400 TO 599"
+    --not-range exit_code:"<=1"
+    --not-prefix message:kernel
+
 Notes:
+  Use filters as much as you can. It makes sense, because filters
+  are binary whereas queries undergo scoring, which is more complex
+  and also don't get cached.func (e *NoAggrValuesError) Error() string {
+	return fmt.Sprintf("Aggregation result value missing in response - %s (see --debug)", e.msg)
+}
+
+
   When filtering by terms, you might need to use the '<field>.raw:<value>'
-  representation of the field to match the exact string.
+  representation of the field to match the exact string or use match
+  type of filter.
 `
 
 	params := kingpin.New("check-es-aggregation", "Nagios Plugin to compute ElasticSearch aggregations").UsageTemplate(template)
-	config.elasticsearchURL = params.Flag("es-url", "Elasticsearch URL.").Short('e').Default("http://localhost:9200").String()
+	config.elasticsearchURL = params.Flag("es-url", "Elasticsearch URL.").Default("http://localhost:9200").String()
 	config.debug = params.Flag("debug", "Enable logging of HTTP requests to STDERR").Bool()
 	config.index = params.Flag("index-pattern", "Elasticsearch index pattern, eg. logstash-*").Default("logstash-*").String()
 	config.key = params.Flag("key", "Elasticsearch document key to aggregate (check result will be based on the value of this field)").Short('k').Required().String()
 	config.query = params.Flag("query", "Elasticsearch query string").Short('q').Default("*").String()
+	config.pExists = params.Flag("exits", "Elasticsearch exists filter").Short('e').Strings()
+	config.nExists = params.Flag("not-exits", "Elasticsearch missing filter").Strings()
 	config.pTerm = params.Flag("term", "Elasticsearch positive filter").Short('t').Strings()
 	config.nTerm = params.Flag("not-term", "Elasticsearch negative filter").Strings()
+	config.pMatch = params.Flag("match", "Elasticsearch positive match filter").Short('m').Strings()
+	config.nMatch = params.Flag("not-match", "Elasticsearch negative match filter").Strings()
+	config.pPrefix = params.Flag("prefix", "Elasticsearch positive prefix filter").Short('p').Strings()
+	config.nPrefix = params.Flag("not-prefix", "Elasticsearch negative prefix filter").Strings()
+	config.regexp = params.Flag("regex", "Elasticsearch regex filter").Short('r').Strings()
 	config.pRange = params.Flag("range", "Elasticsearch value positive range filter").String()
 	config.nRange = params.Flag("not-range", "Elasticsearch value negative range filter").String()
 	config.agg = params.Flag("aggregation", "Elasticsearch aggregation to compute").Short('a').Default("max").String()
-	config.pct = params.Flag("percentile", "Elasticsearch percentile aggregations parameter").Short('p').Default("99.0").Float64()
-	config.unit = params.Flag("unit", "Unit displayed in the check description").Short('u').String()
-	config.desc = params.Flag("desc", "Check description").Short('d').Required().String()
+	config.pct = params.Flag("percentile", "Elasticsearch percentile aggregations parameter").Default("99.0").Float64()
+	config.unit = params.Flag("unit", "Unit displayed in the check description").Short('u').Default("").String()
+	config.desc = params.Flag("desc", "Check description").Short('d').String()
 	config.duration = params.Flag("duration", "Time range to perform the search on.").Default("5m").Duration()
 	config.warningThreshold = params.Flag("warning", "Warning threshold number").Short('w').Required().String()
 	config.criticalThreshold = params.Flag("critical", "Critical threshold number").Short('c').Required().String()
@@ -360,18 +488,36 @@ Notes:
 
 	params.Parse(os.Args[1:])
 
-	warnRange, err = validateTreshold(*config.warningThreshold)
-	if err != nil {
-		log.Fatal(err)
+	var argsInvalid bool
+
+	if *config.key == "" {
+		fmt.Println(&ArgumentMissingError{"-k"})
+		argsInvalid = true
 	}
 
-	critRange, err = validateTreshold(*config.criticalThreshold)
+	warnRange, err = validateTreshold(config.warningThreshold, "-w")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		argsInvalid = true
+	}
+
+	critRange, err = validateTreshold(config.criticalThreshold, "-c")
+	if err != nil {
+		fmt.Println(err)
+		argsInvalid = true
 	}
 
 	if *config.index == "" || *config.index == "*" {
-		log.Fatalf("Invalid ES index '%s' given", *config.index)
+		fmt.Printf("Invalid ES index '%s' given\n", *config.index)
+		argsInvalid = true
+	}
+
+	if argsInvalid {
+		os.Exit(1)
+	}
+
+	if *config.desc == "" {
+		config.desc = config.key
 	}
 
 	if *config.debug {
@@ -393,8 +539,9 @@ func main() {
 		return
 	}
 
-	filter(searcher)
-	aggregate(searcher)
+	Query(searcher)
+	Filter(searcher)
+	Aggregate(searcher)
 
 	// do the search
 	err = searcher.Search()
@@ -409,25 +556,26 @@ func main() {
 	value, err := searcher.Result()
 	check.AddPerfDatum(*config.key, *config.unit, value, 0.0, math.Inf(1), config.floatWarn(), config.floatCrit())
 	if err != nil {
+		res := fmt.Sprintf("%s %f%s (%s)", *config.desc, value, *config.unit, err.Error())
 		switch *config.nullCode {
 		case 0:
-			check.AddResultf(nagiosplugin.OK, "%s %f (%s)", *config.desc, value, err.Error())
+			check.AddResultf(nagiosplugin.OK, res)
 		case 1:
-			check.AddResultf(nagiosplugin.WARNING, "%s %f (%s)", *config.desc, value, err.Error())
+			check.AddResultf(nagiosplugin.WARNING, res)
 		case 2:
-			check.AddResultf(nagiosplugin.CRITICAL, "%s %f (%s)", *config.desc, value, err.Error())
+			check.AddResultf(nagiosplugin.CRITICAL, res)
 		default:
-			check.AddResultf(nagiosplugin.UNKNOWN, "%s %f (%s)", *config.desc, value, err.Error())
+			check.AddResultf(nagiosplugin.UNKNOWN, res)
 		}
 		return
 	}
 
 	switch {
 	case critRange.Check(value):
-		check.AddResultf(nagiosplugin.CRITICAL, "%s %f > %s", *config.desc, value, *config.criticalThreshold)
+		check.AddResultf(nagiosplugin.CRITICAL, "%s %f%s > %s", *config.desc, value, *config.unit, *config.criticalThreshold+*config.unit)
 	case warnRange.Check(value):
-		check.AddResultf(nagiosplugin.WARNING, "%s %f > %s", *config.desc, value, *config.warningThreshold)
+		check.AddResultf(nagiosplugin.WARNING, "%s %f%s > %s", *config.desc, value, *config.unit, *config.warningThreshold+*config.unit)
 	default:
-		check.AddResultf(nagiosplugin.OK, "%s %f", *config.desc, value)
+		check.AddResultf(nagiosplugin.OK, "%s %f%s", *config.desc, value, *config.unit)
 	}
 }
