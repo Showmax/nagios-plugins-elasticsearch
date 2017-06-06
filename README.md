@@ -8,7 +8,7 @@ By providing and search query, a time range, a key (the key's value must be a nu
   - ```min``` - [minumum value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-min-aggregation.html)
   - ```max``` - [maximum value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-max-aggregation.html)
   - ```avg``` - [average value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html)
-  - ```sum``` - [sum of all values](https://www.elastic.co/guide	/en/elasticsearch/reference/current/search-aggregations-metrics-sum-aggregation.html)
+  - ```sum``` - [sum of all values](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-sum-aggregation.html)
   - ```pct``` - [percentile](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-aggregation.html) (requires percent value, defaults to 99.0)
   - ```pctr``` - [percentile rank](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-rank-aggregation.html) (requires value for `p`, defaults to 99.0)
 - [Extended aggregations](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-extendedstats-aggregation.html)
