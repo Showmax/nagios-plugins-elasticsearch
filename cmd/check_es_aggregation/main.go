@@ -89,9 +89,9 @@ func newSearcher(url string, idx string, timeAgo time.Duration, logger *log.Logg
 	var err error
 	var client *elastic.Client
 	if logger != nil {
-		client, err = elastic.NewClient(elastic.SetURL(url), elastic.SetTraceLog(logger))
+		client, err = elastic.NewClient(elastic.SetURL(url), elastic.SetTraceLog(logger), elastic.SetSniff(false))
 	} else {
-		client, err = elastic.NewClient(elastic.SetURL(url))
+		client, err = elastic.NewClient(elastic.SetURL(url), elastic.SetSniff(false))
 	}
 	if err != nil {
 		return nil, err
