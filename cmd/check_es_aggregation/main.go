@@ -427,7 +427,7 @@ Supported aggregations:
   var          Variance
 
 Supported filters:
-  (not-)exits     Matches against field presence
+  (not-)exists    Matches against field presence
   (not-)term      Matches string against analyzed terms
   (not-)match     Matches string against analyzed field data
   (not-)prefix    Matches prefix string against field data
@@ -438,7 +438,7 @@ Supported filters:
     <field>=<value>
 
   Examples:
-    --not-exits message
+    --not-exists message
     -t hostname:localhost
     -m domain:*example.net
     -r 'message:/^some_nice_long_(test|debug)_value/'
@@ -465,8 +465,8 @@ Notes:
 	config.index = params.Flag("index-pattern", "Elasticsearch index pattern, eg. logstash-*").Default("logstash-*").String()
 	config.key = params.Flag("key", "Elasticsearch document key to aggregate (check result will be based on the value of this field)").Short('k').Required().String()
 	config.query = params.Flag("query", "Elasticsearch query string").Short('q').Default("*").String()
-	config.pExists = params.Flag("exits", "Elasticsearch exists filter").Short('e').Strings()
-	config.nExists = params.Flag("not-exits", "Elasticsearch missing filter").Strings()
+	config.pExists = params.Flag("exists", "Elasticsearch exists filter").Short('e').Strings()
+	config.nExists = params.Flag("not-exists", "Elasticsearch missing filter").Strings()
 	config.pTerm = params.Flag("term", "Elasticsearch positive filter").Short('t').Strings()
 	config.nTerm = params.Flag("not-term", "Elasticsearch negative filter").Strings()
 	config.pMatch = params.Flag("match", "Elasticsearch positive match filter").Short('m').Strings()
