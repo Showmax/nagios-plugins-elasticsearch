@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -340,12 +341,11 @@ func validateTreshold(in *string, arg string) (*nagiosplugin.Range, error) {
 }
 
 func Fields(in string) []string {
-	f := strings.FieldsFunc(in,
-		func(r rune) bool {
-			return strings.ContainsRune(":=", r)
-		},
-	)
-	return f
+	f := regexp.MustCompile("^([a-zA-Z0-9_\\.\\-]+)[\\:\\=]\\s*(.*)").FindStringSubmatch(in)
+	if f == nil {
+		return []string{}
+	}
+	return f[1:]
 }
 
 func Filter(s *searcher) {
