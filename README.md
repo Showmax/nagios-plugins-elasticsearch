@@ -29,7 +29,7 @@ By providing and search query, a time range, a key (the key's value must be a nu
 ```
 check-es-aggregation \
   -t service:varnishlog \
-  -m url:/ban \
+  -m url:/purge \
   -k stopwatch.resp.duration_ms \
   -a max \
   -w 15.5 \
