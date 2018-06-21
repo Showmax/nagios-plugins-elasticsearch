@@ -160,16 +160,16 @@ func (s *searcher) AddTermFilter(field string, value string, negative bool) *sea
 }
 
 func (s *searcher) AddRangeFilter(field string, rng string, negative bool) *searcher {
-	q := elastic.NewRangeQuery("range_" + field)
+	q := elastic.NewRangeQuery(field)
 	switch {
-	case strings.HasPrefix(rng, ">"):
-		q = q.Gt(strings.TrimPrefix(rng, ">"))
 	case strings.HasPrefix(rng, ">="):
 		q = q.Gte(strings.TrimPrefix(rng, ">="))
-	case strings.HasPrefix(rng, "<"):
-		q = q.Lt(strings.TrimPrefix(rng, "<"))
 	case strings.HasPrefix(rng, "<="):
 		q = q.Lte(strings.TrimPrefix(rng, "<="))
+	case strings.HasPrefix(rng, ">"):
+		q = q.Gt(strings.TrimPrefix(rng, ">"))
+	case strings.HasPrefix(rng, "<"):
+		q = q.Lt(strings.TrimPrefix(rng, "<"))
 	case strings.Contains(rng, " TO "):
 		r := strings.Split(rng, " TO ")
 		q = q.From(r[0]).To(r[1])
@@ -388,7 +388,7 @@ func Filter(s *searcher) {
 		s.AddRangeFilter(f[0], f[1], false)
 	}
 	if *config.nRange != "" {
-		f := Fields(*config.pRange)
+		f := Fields(*config.nRange)
 		s.AddRangeFilter(f[0], f[1], true)
 	}
 }
