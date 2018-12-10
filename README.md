@@ -1,10 +1,10 @@
 # ElasticSearch Nagios plugin
 Generate alerts based on elasticsearch search query.
 
-By providing and search query, a time range, a key (the key's value must be a number), this application will check the aggregated result from the key's values over the time range specified (5min by default) and return a nagios-compatible alert.
+Given a search query, a time range and a key (the key's value must be a number), this application will check the aggregated result from the key's values over the time range specified (5min by default) and return a nagios-compatible alert.
 
 ## Supported Aggregations
-- Basic aggergations
+- Basic aggregations
   - ```min``` - [minumum value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-min-aggregation.html)
   - ```max``` - [maximum value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-max-aggregation.html)
   - ```avg``` - [average value](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html)
